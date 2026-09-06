@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>World Disaster Dashboard – Real-Time Global Crisis Monitor</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #334155;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #22c55e;
+      --border: #475569;
+      --shadow: 0 4px 20px rgba(0,0,0,0.4);
+      --radius: 12px;
+      --sidebar-width: 380px;
+      --header-height: 60px;
+    }
+    [data-theme="light"] {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #ffffff;
+      --bg-card: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --border: #cbd5e1;
+      --shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+    .header {
+      height: var(--header-height);
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 1000;
+      box-shadow: var(--shadow);
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 1.35rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .logo i { color: var(--danger); }
+    .status-badge {
+      font-size: 0.75rem; padding: 4px 10px; border-radius: 20px;
+      background: var(--success); color: white; display: flex; align-items: center; gap: 6px;
+    }
+    .status-badge.offline { background: var(--warning); }
+    .status-badge .pulse {
+      width: 8px; height: 8px; background: white; border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .last-updated { font-size: 0.8rem; color: var(--text-secondary); }
+    .btn {
+      background: var(--bg-card); border: 1px solid var(--border); color: var(--text-primary);
+      padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+      display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent); border-color: var(--accent); color: white; }
+    .btn-icon { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; }
+    .main-container { display: flex; height: calc(100% - var(--header-height)); position: relative; }
+    .sidebar {
+      width: var(--sidebar-width); background: var(--bg-secondary);
+      border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      overflow: hidden; transition: transform 0.3s ease; z-index: 900;
+    }
+    .sidebar.collapsed { transform: translateX(-100%); }
+    .sidebar-content {
+      flex: 1; overflow-y: auto; padding: 16px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .panel {
+      background: var(--bg-card); border-radius: var(--radius);
+      padding: 14px; border: 1px solid var(--border);
+    }
+    .panel-title {
+      font-size: 0.85rem; font-weight: 600; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-title i { color: var(--accent); }
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-card {
+      background: var(--bg-primary); border-radius: 10px; padding: 12px;
+      text-align: center; border: 1px solid var(--border);
+    }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat-label { font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; }
+    .most-severe {
+      margin-top: 10px; padding: 10px; background: rgba(239,68,68,0.15);
+      border-radius: 8px; border-left: 3px solid var(--danger); font-size: 0.8rem;
+    }
+    .most-severe strong { color: var(--danger); }
+    .filter-group { margin-bottom: 12px; }
+    .filter-group label { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; }
+    .checkbox-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .checkbox-item {
+      display: flex; align-items: center; gap: 6px; font-size: 0.8rem;
+      cursor: pointer; padding: 4px 6px; border-radius: 6px; transition: background 0.2s;
+    }
+    .checkbox-item:hover { background: var(--bg-primary); }
+    .checkbox-item input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+    .search-input {
+      width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-primary); color: var(--text-primary); font-size: 0.9rem; outline: none;
+    }
+    .search-input:focus { border-color: var(--accent); }
+    select, input[type="range"] {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-primary); color: var(--text-primary); font-size: 0.85rem; outline: none;
+    }
+    input[type="range"] { padding: 0; height: 6px; accent-color: var(--accent); }
+    .range-value { text-align: center; font-size: 0.8rem; color: var(--accent); margin-top: 4px; }
+    .chart-container { height: 180px; position: relative; }
+    .map-container { flex: 1; position: relative; height: 100%; }
+    #map { width: 100%; height: 100%; background: #1a1a2e; }
+    .sidebar-toggle {
+      display: none; position: absolute; top: 12px; left: 12px; z-index: 1000;
+      background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary);
+      width: 42px; height: 42px; border-radius: 50%; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: var(--shadow);
+    }
+    .toast-container {
+      position: fixed; top: 70px; right: 16px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 10px; max-width: 360px;
+    }
+    .toast {
+      background: var(--bg-secondary); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+      border-radius: 10px; padding: 12px 16px; box-shadow: var(--shadow);
+      display: flex; align-items: flex-start; gap: 12px; animation: slideIn 0.3s ease; font-size: 0.85rem;
+    }
+    .toast.danger { border-left-color: var(--danger); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.success { border-left-color: var(--success); }
+    .toast-icon { font-size: 1.2rem; margin-top: 2px; }
+    .toast-content { flex: 1; }
+    .toast-title { font-weight: 600; margin-bottom: 2px; }
+    .toast-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1rem; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .map-legend {
+      position: absolute; bottom: 24px; left: 12px; background: var(--bg-secondary);
+      border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+      z-index: 800; font-size: 0.75rem; box-shadow: var(--shadow); max-width: 220px;
+    }
+    .legend-title { font-weight: 600; margin-bottom: 6px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .legend-color { width: 12px; height: 12px; border-radius: 50%; }
+    .offline-banner {
+      display: none; background: var(--warning); color: #000; text-align: center;
+      padding: 6px; font-size: 0.85rem; font-weight: 600;
+    }
+    .offline-banner.show { display: block; }
+    .loading-overlay {
+      position: absolute; inset: 0; background: rgba(15,23,42,0.7);
+      display: flex; align-items: center; justify-content: center; z-index: 950;
+      flex-direction: column; gap: 12px;
+    }
+    .loading-overlay.hidden { display: none; }
+    .spinner {
+      width: 40px; height: 40px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-secondary) !important; color: var(--text-primary) !important;
+      border-radius: 12px !important; box-shadow: var(--shadow) !important; border: 1px solid var(--border);
+    }
+    .leaflet-popup-tip { background: var(--bg-secondary) !important; }
+    .leaflet-popup-content { margin: 12px 14px !important; min-width: 280px; max-width: 340px; }
+    .popup-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 8px; line-height: 1.3;
+    }
+    .popup-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; font-size: 0.8rem;
+    }
+    .popup-stat { background: var(--bg-card); padding: 6px 8px; border-radius: 6px; }
+    .popup-stat span { color: var(--text-secondary); font-size: 0.7rem; display: block; }
+    .popup-news { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+    .popup-news-title { font-size: 0.75rem; font-weight: 600; margin-bottom: 6px; color: var(--accent); }
+    .news-item { font-size: 0.75rem; margin-bottom: 8px; line-height: 1.35; }
+    .news-item a { color: var(--text-primary); text-decoration: none; }
+    .news-item a:hover { color: var(--accent); }
+    .news-meta { color: var(--text-secondary); font-size: 0.65rem; margin-top: 2px; }
+    .popup-link {
+      display: inline-block; margin-top: 8px; padding: 6px 12px; background: var(--accent);
+      color: white; border-radius: 6px; text-decoration: none; font-size: 0.8rem; font-weight: 600;
+    }
+    .popup-link:hover { background: var(--accent-hover); }
+    .disaster-marker {
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .sources-badge {
+      font-size: 0.65rem; color: var(--text-secondary); margin-top: 6px;
+      display: flex; flex-wrap: wrap; gap: 4px;
+    }
+    .sources-badge span {
+      background: var(--bg-primary); padding: 2px 6px; border-radius: 4px;
+    }
+    @media (max-width: 900px) {
+      .sidebar {
+        position: absolute; left: 0; top: 0; height: 100%;
+        transform: translateX(-100%); box-shadow: var(--shadow);
+      }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-toggle { display: flex; }
+      .last-updated { display: none; }
+    }
+    @media (max-width: 500px) {
+      .logo span { display: none; }
+      .map-legend { font-size: 0.65rem; padding: 6px 10px; bottom: 16px; }
+      .toast-container { left: 12px; right: 12px; max-width: none; }
+    }
+    [data-contrast="high"] {
+      --bg-primary: #000; --bg-secondary: #111; --bg-card: #222;
+      --text-primary: #fff; --text-secondary: #ddd; --border: #555;
+    }
+    .sidebar-content::-webkit-scrollbar { width: 6px; }
+    .sidebar-content::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Map type switcher */
+    .map-type-control {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 850;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: var(--shadow);
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      max-width: 280px;
+    }
+    .map-type-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .map-type-btn:hover { background: var(--accent); border-color: var(--accent); color: white; }
+    .map-type-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    /* About modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      max-width: 560px;
+      width: 100%;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow);
+      animation: modalIn 0.25s ease;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-header h2 {
+      font-size: 1.15rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    .modal-close:hover { background: var(--bg-card); color: var(--text-primary); }
+    .modal-body { padding: 18px 20px; font-size: 0.88rem; line-height: 1.55; }
+    .modal-body h3 {
+      font-size: 0.95rem;
+      margin: 16px 0 8px;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-body h3:first-child { margin-top: 0; }
+    .modal-body ul {
+      margin: 0 0 8px 18px;
+      padding: 0;
+    }
+    .modal-body li { margin-bottom: 5px; }
+    .modal-body p { margin-bottom: 10px; color: var(--text-secondary); }
+    .copyleft-box {
+      margin-top: 16px;
+      padding: 12px 14px;
+      background: var(--bg-card);
+      border-radius: 10px;
+      border-left: 3px solid var(--accent);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+    .copyleft-box strong { color: var(--text-primary); }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .feature-item {
+      background: var(--bg-card);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .feature-item i { color: var(--accent); margin-top: 2px; flex-shrink: 0; }
+    @media (max-width: 500px) {
+      .feature-grid { grid-template-columns: 1fr; }
+      .map-type-control { max-width: 200px; right: 8px; top: 60px; }
+      .map-type-btn { padding: 5px 7px; font-size: 0.65rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="offline-banner" id="offlineBanner">
+    <i class="fas fa-wifi"></i> Offline Mode – Showing cached / demo data
+  </div>
+
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">
+        <i class="fas fa-globe-americas"></i>
+        <span>World Disaster Dashboard</span>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="pulse"></span>
+        <span id="statusText">Live</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="last-updated" id="lastUpdated">Last updated: —</div>
+      <button class="btn btn-icon" id="aboutBtn" title="About" aria-label="About this dashboard">
+        <i class="fas fa-info-circle"></i>
+      </button>
+      <button class="btn btn-icon" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">
+        <i class="fas fa-moon"></i>
+      </button>
+      <button class="btn btn-icon" id="contrastToggle" title="High contrast" aria-label="Toggle high contrast">
+        <i class="fas fa-adjust"></i>
+      </button>
+      <button class="btn btn-icon" id="refreshBtn" title="Refresh now" aria-label="Refresh data">
+        <i class="fas fa-sync-alt"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="main-container">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-content">
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-chart-bar"></i> Global Summary</div>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="statTotal">0</div>
+              <div class="stat-label">Active Disasters</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="stat24h">0</div>
+              <div class="stat-label">Last 24 Hours</div>
+            </div>
+          </div>
+          <div class="most-severe" id="mostSevere">
+            <strong>Most Severe:</strong> <span>—</span>
+          </div>
+          <div class="sources-badge" id="sourcesBadge"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-search"></i> Search</div>
+          <input type="text" class="search-input" id="searchInput" placeholder="Location or keyword..." aria-label="Search disasters" />
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-filter"></i> Disaster Types</div>
+          <div class="checkbox-grid" id="typeFilters">
+            <label class="checkbox-item"><input type="checkbox" value="earthquake" checked /> 🌍 Earthquakes</label>
+            <label class="checkbox-item"><input type="checkbox" value="wildfire" checked /> 🔥 Wildfires</label>
+            <label class="checkbox-item"><input type="checkbox" value="flood" checked /> 🌊 Floods</label>
+            <label class="checkbox-item"><input type="checkbox" value="storm" checked /> 🌪️ Storms</label>
+            <label class="checkbox-item"><input type="checkbox" value="volcano" checked /> 🌋 Volcanoes</label>
+            <label class="checkbox-item"><input type="checkbox" value="drought" checked /> ☀️ Droughts</label>
+            <label class="checkbox-item"><input type="checkbox" value="landslide" checked /> ⛰️ Landslides</label>
+            <label class="checkbox-item"><input type="checkbox" value="extreme" checked /> ❄️ Extreme</label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-tachometer-alt"></i> Severity (Min)</div>
+          <input type="range" id="severitySlider" min="1" max="10" value="1" aria-label="Minimum severity" />
+          <div class="range-value" id="severityValue">1 / 10</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-clock"></i> Time Range</div>
+          <select id="timeRange" aria-label="Time range filter">
+            <option value="1">Last 24 hours</option>
+            <option value="7" selected>Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-chart-pie"></i> Frequency by Type</div>
+          <div class="chart-container">
+            <canvas id="typeChart"></canvas>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><i class="fas fa-flag"></i> Top Affected Regions</div>
+          <div id="topCountries" style="font-size:0.8rem; line-height:1.6;"></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="map-container">
+      <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div id="map"></div>
+
+      <!-- Map type switcher -->
+      <div class="map-type-control" id="mapTypeControl" role="group" aria-label="Map type">
+        <button class="map-type-btn active" data-layer="basic" title="OpenStreetMap">Basic</button>
+        <button class="map-type-btn" data-layer="satellite" title="Satellite imagery">Satellite</button>
+        <button class="map-type-btn" data-layer="dark" title="Dark theme map">Dark Map</button>
+        <button class="map-type-btn" data-layer="greenlines" title="Topographic / terrain">Greenlines</button>
+      </div>
+
+      <div class="map-legend" id="mapLegend">
+        <div class="legend-title">Severity</div>
+        <div class="legend-item"><span class="legend-color" style="background:#ef4444"></span> High (7–10)</div>
+        <div class="legend-item"><span class="legend-color" style="background:#f59e0b"></span> Medium (4–6)</div>
+        <div class="legend-item"><span class="legend-color" style="background:#eab308"></span> Low (1–3)</div>
+      </div>
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div>Loading disaster data…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- About Modal -->
+  <div class="modal-overlay" id="aboutModal" role="dialog" aria-labelledby="aboutTitle" aria-modal="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="aboutTitle"><i class="fas fa-globe-americas" style="color:var(--danger)"></i> About World Disaster Dashboard</h2>
+        <button class="modal-close" id="aboutClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          A free, real-time global crisis monitor that aggregates natural and humanitarian disaster data
+          onto an interactive map. Built as a single self-contained HTML file with zero backend and no API keys required.
+        </p>
+
+        <h3><i class="fas fa-star"></i> Key Features</h3>
+        <div class="feature-grid">
+          <div class="feature-item"><i class="fas fa-map-marked-alt"></i> Interactive Leaflet map with clustering</div>
+          <div class="feature-item"><i class="fas fa-satellite"></i> Multiple basemap styles (Basic, Satellite, Dark, Greenlines)</div>
+          <div class="feature-item"><i class="fas fa-bolt"></i> Auto-refresh every 30 seconds</div>
+          <div class="feature-item"><i class="fas fa-filter"></i> Type, severity &amp; time-range filters</div>
+          <div class="feature-item"><i class="fas fa-bell"></i> New-disaster toasts + subtle sound alert</div>
+          <div class="feature-item"><i class="fas fa-newspaper"></i> Live related news headlines in popups</div>
+          <div class="feature-item"><i class="fas fa-chart-bar"></i> Live stats + frequency chart</div>
+          <div class="feature-item"><i class="fas fa-moon"></i> Dark / Light + high-contrast modes</div>
+          <div class="feature-item"><i class="fas fa-wifi"></i> Offline cache + demo fallback</div>
+          <div class="feature-item"><i class="fas fa-mobile-alt"></i> Fully responsive (mobile → desktop)</div>
+        </div>
+
+        <h3><i class="fas fa-database"></i> Data Sources</h3>
+        <ul>
+          <li><strong>EMSC / CSEM</strong> – European-Mediterranean Seismological Centre (global earthquake catalog)</li>
+          <li><strong>USGS</strong> – U.S. Geological Survey real-time earthquake feeds</li>
+          <li><strong>GDACS</strong> – Global Disaster Alert and Coordination System (UN/EC) – severity-ranked multi-hazard alerts</li>
+          <li><strong>NASA EONET</strong> – Earth Observatory Natural Event Tracker (fires, floods, storms, volcanoes…)</li>
+          <li><strong>freenewsapi.ai</strong> – Keyless news search for related headlines</li>
+        </ul>
+
+        <h3><i class="fas fa-layer-group"></i> Map Types</h3>
+        <ul>
+          <li><strong>Basic</strong> – OpenStreetMap street map</li>
+          <li><strong>Satellite</strong> – Esri World Imagery</li>
+          <li><strong>Dark Map</strong> – CartoDB Dark Matter (easy on the eyes at night)</li>
+          <li><strong>Greenlines</strong> – OpenTopoMap (topographic / terrain with contour lines)</li>
+        </ul>
+
+        <div class="copyleft-box">
+          <strong>Copyleft / License</strong><br>
+          This dashboard is free and open. You may use, copy, modify, and redistribute it under the terms of the
+          <strong>GNU General Public License v3.0 (or later)</strong> — a strong copyleft license.
+          Source data remains the property of the respective providers (EMSC, USGS, GDACS, NASA, etc.) and is used under their open-data terms.
+          No warranty is provided; the software is supplied “as is”.
+          <br><br>
+          Built with vanilla HTML / CSS / JavaScript + Leaflet, Chart.js &amp; Font Awesome (CDN).
+          <br>
+          © 2026 World Disaster Dashboard — Share alike.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <script>
+    // ==================== CONFIG ====================
+    const CONFIG = {
+      refreshInterval: 30000,
+      maxMarkers: 900,
+      cacheKey: 'disaster_dashboard_v2',
+      cacheTTL: 12 * 60 * 1000
+    };
+
+    const DEMO_DATA = [
+      { id: 'demo-eq-1', title: '6.8 Magnitude Earthquake – Near coast of Honshu, Japan', type: 'earthquake', lat: 37.5, lon: 141.5, severity: 8, magnitude: 6.8, date: new Date(Date.now() - 3600000).toISOString(), source: 'USGS', url: 'https://earthquake.usgs.gov', country: 'Japan' },
+      { id: 'demo-eq-2', title: '5.4 Magnitude Earthquake – Southern California', type: 'earthquake', lat: 34.0, lon: -118.2, severity: 5, magnitude: 5.4, date: new Date(Date.now() - 7200000).toISOString(), source: 'EMSC', url: 'https://www.emsc-csem.org', country: 'USA' },
+      { id: 'demo-wf-1', title: 'Wildfire – Northern California (Active)', type: 'wildfire', lat: 40.5, lon: -122.0, severity: 7, date: new Date(Date.now() - 86400000).toISOString(), source: 'EONET', url: 'https://eonet.gsfc.nasa.gov', country: 'USA' },
+      { id: 'demo-fl-1', title: 'Flooding – Bangladesh & Northeast India', type: 'flood', lat: 24.0, lon: 90.0, severity: 7, date: new Date(Date.now() - 43200000).toISOString(), source: 'GDACS', url: 'https://www.gdacs.org', country: 'Bangladesh' },
+      { id: 'demo-st-1', title: 'Tropical Storm – Western Pacific', type: 'storm', lat: 15.0, lon: 130.0, severity: 6, date: new Date(Date.now() - 21600000).toISOString(), source: 'GDACS', url: 'https://www.gdacs.org', country: 'Philippines' },
+      { id: 'demo-vo-1', title: 'Volcanic Activity – Mount Etna, Italy', type: 'volcano', lat: 37.75, lon: 15.0, severity: 5, date: new Date(Date.now() - 259200000).toISOString(), source: 'EONET', url: 'https://eonet.gsfc.nasa.gov', country: 'Italy' },
+      { id: 'demo-dr-1', title: 'Severe Drought – Horn of Africa', type: 'drought', lat: 5.0, lon: 40.0, severity: 8, date: new Date(Date.now() - 604800000).toISOString(), source: 'GDACS', url: 'https://www.gdacs.org', country: 'Somalia' },
+      { id: 'demo-eq-3', title: '7.1 Magnitude Earthquake – Papua New Guinea', type: 'earthquake', lat: -5.5, lon: 145.0, severity: 9, magnitude: 7.1, date: new Date(Date.now() - 10800000).toISOString(), source: 'EMSC', url: 'https://www.emsc-csem.org', country: 'Papua New Guinea' }
+    ];
+
+    const TYPE_META = {
+      earthquake: { emoji: '🌍', color: '#ef4444', label: 'Earthquake' },
+      wildfire:   { emoji: '🔥', color: '#f97316', label: 'Wildfire' },
+      flood:      { emoji: '🌊', color: '#3b82f6', label: 'Flood' },
+      storm:      { emoji: '🌪️', color: '#8b5cf6', label: 'Storm' },
+      volcano:    { emoji: '🌋', color: '#dc2626', label: 'Volcano' },
+      drought:    { emoji: '☀️', color: '#eab308', label: 'Drought' },
+      landslide:  { emoji: '⛰️', color: '#78716c', label: 'Landslide' },
+      extreme:    { emoji: '❄️', color: '#06b6d4', label: 'Extreme Weather' },
+      other:      { emoji: '⚠️', color: '#64748b', label: 'Other' }
+    };
+
+    let map, markerCluster, typeChart, currentBaseLayer;
+    let allDisasters = [];
+    let knownIds = new Set();
+    let isOnline = navigator.onLine;
+    let refreshTimer = null;
+    let lastFetchTime = 0;
+    let sourceStats = {};
+    let baseLayers = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      initUI();
+      initChart();
+      loadData(true);
+      startAutoRefresh();
+      setupNetworkListeners();
+    });
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true, attributionControl: true }).setView([20, 0], 2);
+
+      // --- Basemap definitions ---
+      baseLayers = {
+        basic: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap | Data: EMSC, USGS, GDACS, NASA EONET',
+          maxZoom: 19
+        }),
+        satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics | Data: EMSC, USGS, GDACS, NASA',
+          maxZoom: 19
+        }),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+          attribution: '© OpenStreetMap © CARTO | Data: EMSC, USGS, GDACS, NASA EONET',
+          maxZoom: 19,
+          subdomains: 'abcd'
+        }),
+        greenlines: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap © OpenTopoMap (CC-BY-SA) | Data: EMSC, USGS, GDACS, NASA',
+          maxZoom: 17
+        })
+      };
+
+      // Default layer
+      currentBaseLayer = baseLayers.basic;
+      currentBaseLayer.addTo(map);
+
+      markerCluster = L.markerClusterGroup({
+        maxClusterRadius: 50,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true
+      });
+      map.addLayer(markerCluster);
+
+      // Map type buttons
+      document.querySelectorAll('.map-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.layer;
+          if (!baseLayers[key] || currentBaseLayer === baseLayers[key]) return;
+          map.removeLayer(currentBaseLayer);
+          currentBaseLayer = baseLayers[key];
+          currentBaseLayer.addTo(map);
+          document.querySelectorAll('.map-type-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+    }
+
+    function initUI() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeIcon(savedTheme);
+
+      document.getElementById('themeToggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateThemeIcon(next);
+      });
+
+      document.getElementById('contrastToggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-contrast');
+        if (current === 'high') document.documentElement.removeAttribute('data-contrast');
+        else document.documentElement.setAttribute('data-contrast', 'high');
+      });
+
+      document.getElementById('sidebarToggle').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.toggle('open');
+      });
+
+      document.getElementById('refreshBtn').addEventListener('click', () => loadData(true));
+
+      // About modal
+      const aboutModal = document.getElementById('aboutModal');
+      document.getElementById('aboutBtn').addEventListener('click', () => {
+        aboutModal.classList.add('show');
+      });
+      document.getElementById('aboutClose').addEventListener('click', () => {
+        aboutModal.classList.remove('show');
+      });
+      aboutModal.addEventListener('click', (e) => {
+        if (e.target === aboutModal) aboutModal.classList.remove('show');
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') aboutModal.classList.remove('show');
+      });
+
+      document.querySelectorAll('#typeFilters input').forEach(cb => cb.addEventListener('change', applyFilters));
+      document.getElementById('severitySlider').addEventListener('input', (e) => {
+        document.getElementById('severityValue').textContent = `${e.target.value} / 10`;
+        applyFilters();
+      });
+      document.getElementById('timeRange').addEventListener('change', applyFilters);
+      document.getElementById('searchInput').addEventListener('input', debounce(applyFilters, 300));
+    }
+
+    function updateThemeIcon(theme) {
+      document.querySelector('#themeToggle i').className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('typeChart').getContext('2d');
+      typeChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: [], borderRadius: 6 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(148,163,184,0.15)' } },
+            x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // ==================== DATA LOADING ====================
+    async function loadData(force = false) {
+      const now = Date.now();
+      if (!force && now - lastFetchTime < 25000) return;
+      lastFetchTime = now;
+      showLoading(true);
+
+      try {
+        const days = parseInt(document.getElementById('timeRange')?.value || 7, 10);
+        const results = await Promise.allSettled([
+          fetchEMSC(days),
+          fetchUSGS(days),
+          fetchGDACS(days),
+          fetchEONET(days)
+        ]);
+
+        const combined = [];
+        sourceStats = {};
+        results.forEach((r, i) => {
+          const names = ['EMSC', 'USGS', 'GDACS', 'EONET'];
+          if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+            combined.push(...r.value);
+            sourceStats[names[i]] = r.value.length;
+          } else {
+            sourceStats[names[i]] = 0;
+            console.warn(names[i] + ' failed', r.reason);
+          }
+        });
+
+        // Deduplicate: prefer higher severity / more recent for near-identical events
+        const mapByKey = new Map();
+        combined.forEach(d => {
+          const key = `${d.type}-${Math.round(d.lat * 20) / 20}-${Math.round(d.lon * 20) / 20}-${d.date.slice(0, 10)}`;
+          const existing = mapByKey.get(key);
+          if (!existing || d.severity > existing.severity || new Date(d.date) > new Date(existing.date)) {
+            mapByKey.set(key, d);
+          }
+        });
+        allDisasters = Array.from(mapByKey.values());
+
+        try {
+          localStorage.setItem(CONFIG.cacheKey, JSON.stringify({ ts: now, data: allDisasters, sources: sourceStats }));
+        } catch (e) {}
+
+        checkNewDisasters(allDisasters);
+        applyFilters();
+        updateLastUpdated();
+        setOnlineStatus(true);
+        updateSourcesBadge();
+      } catch (err) {
+        console.warn('Fetch failed', err);
+        loadFromCacheOrDemo();
+        setOnlineStatus(false);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // ---------- EMSC (CSEM) – independent global catalog ----------
+    async function fetchEMSC(days) {
+      const start = new Date(Date.now() - days * 86400000).toISOString().slice(0, 19);
+      const url = `https://www.seismicportal.eu/fdsnws/event/1/query?format=json&minmag=2.5&limit=400&orderby=time&starttime=${start}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('EMSC ' + res.status);
+      const json = await res.json();
+      return (json.features || []).map(f => {
+        const p = f.properties || {};
+        const coords = f.geometry?.coordinates || [0, 0, 0];
+        const mag = p.mag || 0;
+        const severity = Math.min(10, Math.max(1, Math.round(mag * 1.25)));
+        return {
+          id: `emsc-${p.unid || p.source_id || f.id}`,
+          title: `${mag.toFixed(1)} ${p.magtype || 'M'} – ${p.flynn_region || 'Unknown region'}`,
+          type: 'earthquake',
+          lat: p.lat ?? coords[1],
+          lon: p.lon ?? coords[0],
+          severity,
+          magnitude: mag,
+          depth: p.depth ?? coords[2],
+          date: p.time || new Date().toISOString(),
+          source: 'EMSC',
+          url: `https://www.emsc-csem.org/Earthquake_information/earthquake.php?id=${p.source_id || ''}`,
+          country: extractCountry(p.flynn_region || ''),
+          raw: f
+        };
+      }).filter(d => d.lat && d.lon);
+    }
+
+    // ---------- USGS ----------
+    async function fetchUSGS(days) {
+      let period = 'week';
+      if (days <= 1) period = 'day';
+      else if (days <= 7) period = 'week';
+      else period = 'month';
+      const url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_${period}.geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('USGS ' + res.status);
+      const json = await res.json();
+      return (json.features || []).map(f => {
+        const p = f.properties || {};
+        const coords = f.geometry?.coordinates || [0, 0, 0];
+        const mag = p.mag || 0;
+        const severity = Math.min(10, Math.max(1, Math.round(mag * 1.2)));
+        return {
+          id: `usgs-${f.id}`,
+          title: p.title || `${mag} Magnitude Earthquake`,
+          type: 'earthquake',
+          lat: coords[1],
+          lon: coords[0],
+          severity,
+          magnitude: mag,
+          depth: coords[2],
+          date: new Date(p.time).toISOString(),
+          source: 'USGS',
+          url: p.url || 'https://earthquake.usgs.gov',
+          country: extractCountry(p.place || ''),
+          raw: f
+        };
+      }).filter(d => d.lat && d.lon);
+    }
+
+    // ---------- GDACS – severity-ranked multi-hazard ----------
+    async function fetchGDACS(days) {
+      const from = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+      const to = new Date().toISOString().slice(0, 10);
+      const url = `https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=EQ;FL;TC;VO;WF;DR&alertlevel=red;orange;green&fromdate=${from}&todate=${to}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('GDACS ' + res.status);
+      const json = await res.json();
+      const typeMap = { EQ: 'earthquake', FL: 'flood', TC: 'storm', VO: 'volcano', WF: 'wildfire', DR: 'drought' };
+      return (json.features || []).map(f => {
+        const p = f.properties || {};
+        const coords = f.geometry?.coordinates || [0, 0];
+        const alert = (p.alertlevel || 'Green').toLowerCase();
+        let severity = 3;
+        if (alert === 'red') severity = 9;
+        else if (alert === 'orange') severity = 6;
+        else severity = 3;
+        // Boost with alertscore if present
+        if (p.alertscore) severity = Math.min(10, Math.max(severity, Math.round(p.alertscore * 2)));
+        const type = typeMap[p.eventtype] || 'other';
+        const name = p.name || p.eventname || p.description || `${p.eventtype} event`;
+        return {
+          id: `gdacs-${p.eventtype}-${p.eventid}-${p.episodeid || 0}`,
+          title: name,
+          type,
+          lat: coords[1] ?? p.latitude,
+          lon: coords[0] ?? p.longitude,
+          severity,
+          date: p.fromdate || p.datemodified || new Date().toISOString(),
+          source: 'GDACS',
+          url: p.url?.report || p.url?.details || `https://www.gdacs.org/report.aspx?eventid=${p.eventid}&eventtype=${p.eventtype}`,
+          country: p.country || p.iso3 || 'Unknown',
+          alertLevel: p.alertlevel,
+          raw: f
+        };
+      }).filter(d => d.lat && d.lon);
+    }
+
+    // ---------- NASA EONET ----------
+    async function fetchEONET(days) {
+      const url = `https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=150&days=${Math.min(days, 90)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('EONET ' + res.status);
+      const json = await res.json();
+      return (json.events || []).map(ev => {
+        const cat = (ev.categories?.[0]?.id || '').toLowerCase();
+        let type = 'other';
+        if (cat.includes('wildfire') || cat.includes('fire')) type = 'wildfire';
+        else if (cat.includes('flood')) type = 'flood';
+        else if (cat.includes('storm') || cat.includes('severe')) type = 'storm';
+        else if (cat.includes('volcano')) type = 'volcano';
+        else if (cat.includes('drought')) type = 'drought';
+        else if (cat.includes('landslide')) type = 'landslide';
+        else if (cat.includes('snow') || cat.includes('temp') || cat.includes('extreme')) type = 'extreme';
+        else if (cat.includes('earthquake')) type = 'earthquake';
+
+        const geo = ev.geometry?.[0];
+        const lat = geo?.coordinates?.[1] ?? 0;
+        const lon = geo?.coordinates?.[0] ?? 0;
+        const date = geo?.date || new Date().toISOString();
+        let severity = 4;
+        if (type === 'wildfire' || type === 'volcano') severity = 6;
+        if (type === 'flood' || type === 'storm') severity = 5;
+
+        return {
+          id: `eonet-${ev.id}`,
+          title: ev.title || 'Unknown Event',
+          type,
+          lat, lon,
+          severity,
+          date,
+          source: 'EONET',
+          url: ev.sources?.[0]?.url || `https://eonet.gsfc.nasa.gov/api/v3/events/${ev.id}`,
+          country: extractCountry(ev.title),
+          raw: ev
+        };
+      }).filter(d => d.lat && d.lon);
+    }
+
+    function extractCountry(text) {
+      if (!text) return 'Unknown';
+      const parts = text.split(',').map(s => s.trim());
+      if (parts.length > 1) return parts[parts.length - 1];
+      // Try common region patterns
+      const known = ['Japan', 'China', 'USA', 'India', 'Indonesia', 'Philippines', 'Turkey', 'Italy', 'Greece', 'Chile', 'Mexico', 'Peru', 'Iran', 'Pakistan', 'Nepal', 'Bangladesh', 'Somalia', 'Ethiopia', 'Australia', 'New Zealand'];
+      for (const k of known) if (text.includes(k)) return k;
+      return text.slice(0, 40) || 'Unknown';
+    }
+
+    function loadFromCacheOrDemo() {
+      try {
+        const cached = localStorage.getItem(CONFIG.cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.data?.length) {
+            allDisasters = parsed.data;
+            sourceStats = parsed.sources || {};
+            applyFilters();
+            updateLastUpdated(parsed.ts);
+            updateSourcesBadge();
+            showToast('Using cached data', 'warning');
+            return;
+          }
+        }
+      } catch (e) {}
+      allDisasters = DEMO_DATA.map(d => ({ ...d }));
+      applyFilters();
+      updateLastUpdated();
+      showToast('Using demo data (offline / APIs unavailable)', 'warning');
+    }
+
+    function checkNewDisasters(list) {
+      if (knownIds.size === 0) {
+        list.forEach(d => knownIds.add(d.id));
+        return;
+      }
+      const newOnes = list.filter(d => !knownIds.has(d.id) && d.severity >= 5);
+      newOnes.forEach(d => {
+        knownIds.add(d.id);
+        const meta = TYPE_META[d.type] || TYPE_META.other;
+        showToast(`New ${meta.label}: ${d.title}`, 'danger');
+        playAlertSound();
+      });
+      if (knownIds.size > 3000) knownIds = new Set(list.map(d => d.id));
+    }
+
+    // ==================== FILTERS & RENDER ====================
+    function applyFilters() {
+      const activeTypes = new Set(
+        Array.from(document.querySelectorAll('#typeFilters input:checked')).map(c => c.value)
+      );
+      const minSeverity = parseInt(document.getElementById('severitySlider').value, 10);
+      const days = parseInt(document.getElementById('timeRange').value, 10);
+      const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+      const cutoff = Date.now() - days * 86400000;
+
+      let filtered = allDisasters.filter(d => {
+        if (!activeTypes.has(d.type) && d.type !== 'other') return false;
+        if (d.severity < minSeverity) return false;
+        const t = new Date(d.date).getTime();
+        if (isNaN(t) || t < cutoff) return false;
+        if (search) {
+          const hay = `${d.title} ${d.country} ${d.type} ${d.source}`.toLowerCase();
+          if (!hay.includes(search)) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length > CONFIG.maxMarkers) {
+        filtered = filtered.sort((a, b) => b.severity - a.severity).slice(0, CONFIG.maxMarkers);
+      }
+
+      renderMarkers(filtered);
+      updateStats(filtered);
+      updateChart(filtered);
+    }
+
+    function renderMarkers(list) {
+      markerCluster.clearLayers();
+      const markers = [];
+      list.forEach(d => {
+        const meta = TYPE_META[d.type] || TYPE_META.other;
+        const color = severityColor(d.severity);
+        const size = 26 + Math.min(d.severity, 10) * 1.6;
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="disaster-marker" style="width:${size}px;height:${size}px;background:${color};font-size:${size * 0.42}px;">${meta.emoji}</div>`,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2]
+        });
+        const marker = L.marker([d.lat, d.lon], { icon });
+        marker.bindPopup(() => createPopupContent(d), { maxWidth: 360, className: 'custom-popup' });
+        // Lazy-load news when popup opens
+        marker.on('popupopen', () => loadNewsForPopup(d, marker));
+        markers.push(marker);
+      });
+      markerCluster.addLayers(markers);
+    }
+
+    function severityColor(s) {
+      if (s >= 7) return '#ef4444';
+      if (s >= 4) return '#f59e0b';
+      return '#eab308';
+    }
+
+    function createPopupContent(d) {
+      const meta = TYPE_META[d.type] || TYPE_META.other;
+      const dateStr = formatDate(d.date);
+      let stats = `
+        <div class="popup-stat"><span>Type</span>${meta.label}</div>
+        <div class="popup-stat"><span>Severity</span>${d.severity}/10${d.alertLevel ? ' (' + d.alertLevel + ')' : ''}</div>
+      `;
+      if (d.magnitude != null) stats += `<div class="popup-stat"><span>Magnitude</span>${Number(d.magnitude).toFixed(1)}</div>`;
+      if (d.depth != null) stats += `<div class="popup-stat"><span>Depth</span>${Number(d.depth).toFixed(1)} km</div>`;
+      stats += `<div class="popup-stat"><span>Source</span>${d.source}</div>`;
+      stats += `<div class="popup-stat"><span>When</span>${dateStr}</div>`;
+
+      return `
+        <div class="popup-title">${meta.emoji} ${escapeHtml(d.title)}</div>
+        <div class="popup-stats">${stats}</div>
+        <div class="popup-news" id="news-${d.id}">
+          <div class="popup-news-title"><i class="fas fa-newspaper"></i> Related News</div>
+          <div class="news-item" style="opacity:0.7">Loading headlines…</div>
+        </div>
+        <a class="popup-link" href="${d.url}" target="_blank" rel="noopener">View Official Report →</a>
+      `;
+    }
+
+    async function loadNewsForPopup(d, marker) {
+      const container = document.getElementById(`news-${d.id}`);
+      if (!container || container.dataset.loaded) return;
+      container.dataset.loaded = '1';
+
+      try {
+        const q = encodeURIComponent(`${d.type} ${d.country || ''} ${d.title.split('–')[0].trim()}`.slice(0, 80));
+        const url = `https://freenewsapi.ai/v1/search?q=${q}&size=3&date=7d&sort=date`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('news fail');
+        const json = await res.json();
+        const articles = json.results || [];
+        if (!articles.length) {
+          container.innerHTML = `
+            <div class="popup-news-title"><i class="fas fa-newspaper"></i> Related News</div>
+            <div class="news-item" style="opacity:0.7">No recent headlines found. 
+              <a href="${d.url}" target="_blank" rel="noopener">See official source</a>
+            </div>`;
+          return;
+        }
+        container.innerHTML = `
+          <div class="popup-news-title"><i class="fas fa-newspaper"></i> Related News</div>
+          ${articles.map(a => `
+            <div class="news-item">
+              <a href="${a.url}" target="_blank" rel="noopener">${escapeHtml(a.title)}</a>
+              <div class="news-meta">${a.host || ''} · ${formatDate(a.published_at)}</div>
+            </div>
+          `).join('')}
+        `;
+      } catch (e) {
+        container.innerHTML = `
+          <div class="popup-news-title"><i class="fas fa-newspaper"></i> Related News</div>
+          <div class="news-item">
+            <a href="${d.url}" target="_blank" rel="noopener">${d.source} official report</a>
+            <div class="news-meta">${formatDate(d.date)}</div>
+          </div>`;
+      }
+    }
+
+    function updateStats(list) {
+      document.getElementById('statTotal').textContent = list.length;
+      const dayAgo = Date.now() - 86400000;
+      document.getElementById('stat24h').textContent = list.filter(d => new Date(d.date).getTime() >= dayAgo).length;
+
+      if (list.length) {
+        const most = list.reduce((a, b) => a.severity >= b.severity ? a : b);
+        document.getElementById('mostSevere').innerHTML =
+          `<strong>Most Severe:</strong> ${escapeHtml(most.title)} <span style="opacity:0.7">(${most.severity}/10 · ${most.source})</span>`;
+      } else {
+        document.getElementById('mostSevere').innerHTML = `<strong>Most Severe:</strong> —`;
+      }
+
+      const counts = {};
+      list.forEach(d => {
+        const c = d.country || 'Unknown';
+        counts[c] = (counts[c] || 0) + 1;
+      });
+      const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      document.getElementById('topCountries').innerHTML = top.length
+        ? top.map(([c, n]) => `<div>${escapeHtml(c)} <strong style="float:right">${n}</strong></div>`).join('')
+        : '<div style="opacity:0.6">No data</div>';
+    }
+
+    function updateChart(list) {
+      const counts = {};
+      list.forEach(d => { counts[d.type || 'other'] = (counts[d.type || 'other'] || 0) + 1; });
+      const labels = Object.keys(counts);
+      typeChart.data.labels = labels.map(l => (TYPE_META[l] || TYPE_META.other).label);
+      typeChart.data.datasets[0].data = labels.map(l => counts[l]);
+      typeChart.data.datasets[0].backgroundColor = labels.map(l => (TYPE_META[l] || TYPE_META.other).color);
+      typeChart.update();
+    }
+
+    function updateSourcesBadge() {
+      const el = document.getElementById('sourcesBadge');
+      if (!el) return;
+      const parts = Object.entries(sourceStats)
+        .filter(([, n]) => n > 0)
+        .map(([name, n]) => `<span>${name}: ${n}</span>`);
+      el.innerHTML = parts.length ? parts.join('') : '';
+    }
+
+    // ==================== HELPERS ====================
+    function showLoading(show) {
+      document.getElementById('loadingOverlay').classList.toggle('hidden', !show);
+    }
+
+    function updateLastUpdated(ts) {
+      const d = ts ? new Date(ts) : new Date();
+      const str = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }).format(d);
+      document.getElementById('lastUpdated').textContent = `Last updated: ${str}`;
+    }
+
+    function setOnlineStatus(online) {
+      isOnline = online;
+      const badge = document.getElementById('statusBadge');
+      const text = document.getElementById('statusText');
+      const banner = document.getElementById('offlineBanner');
+      if (online) {
+        badge.classList.remove('offline');
+        text.textContent = 'Live';
+        banner.classList.remove('show');
+      } else {
+        badge.classList.add('offline');
+        text.textContent = 'Offline';
+        banner.classList.add('show');
+      }
+    }
+
+    function setupNetworkListeners() {
+      window.addEventListener('online', () => {
+        setOnlineStatus(true);
+        showToast('Back online – refreshing', 'success');
+        loadData(true);
+      });
+      window.addEventListener('offline', () => {
+        setOnlineStatus(false);
+        showToast('You are offline', 'warning');
+      });
+    }
+
+    function startAutoRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') loadData(false);
+      }, CONFIG.refreshInterval);
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      const icons = { danger: 'fa-exclamation-triangle', warning: 'fa-exclamation-circle', success: 'fa-check-circle', info: 'fa-info-circle' };
+      toast.innerHTML = `
+        <i class="fas ${icons[type] || icons.info} toast-icon"></i>
+        <div class="toast-content">
+          <div class="toast-title">${type === 'danger' ? 'New Alert' : 'Notice'}</div>
+          <div>${escapeHtml(message)}</div>
+        </div>
+        <button class="toast-close" aria-label="Close">&times;</button>
+      `;
+      toast.querySelector('.toast-close').onclick = () => toast.remove();
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 6500);
+    }
+
+    function playAlertSound() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = 880;
+        gain.gain.value = 0.07;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+        osc.stop(ctx.currentTime + 0.28);
+      } catch (e) {}
+    }
+
+    function formatDate(iso) {
+      try {
+        return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+      } catch { return iso; }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+  </script>
+</body>
+</html>
